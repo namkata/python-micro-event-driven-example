@@ -1,0 +1,57 @@
+version: '3.8'
+services:
+  flask_backend:
+    build:
+      context: .
+      dockerfile: flask_project/Dockerfile
+    command: >
+      bash -c " cd flask_project && flask db upgrade && python app.py"
+    ports:
+      - 8001:5000
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+
+  flask_queue:
+    build:
+      context: .
+      dockerfile: flask_project/Dockerfile
+    command: >
+      bash -c 'cd flask_project && python -u consumer.py'
+    depends_on:
+      - postgres
+
+  backend:
+    build:
+      context: .
+      dockerfile: django_project/Dockerfile
+    command: >
+      bash -c " cd django_project && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - 8000:8000
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+
+  django_queue:
+    build:
+      context: .
+      dockerfile: django_project/Dockerfile
+    command: >
+      bash -c "cd django_project && python -u consumer.py"
+    depends_on:
+      - postgres
+      - backend
+  
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - django_project/postgres.env
+  
+  
