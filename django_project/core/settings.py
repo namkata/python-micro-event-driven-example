@@ -21,8 +21,8 @@ env = environ.Env(
         str,
         "django-insecure-@sn5g4+)cnj_rsw37sukv!c0!n8tr^$)0og1bt_5!0#t-f^9op",
     ),
-    DATBASE_URI=(str,),
-    RABBITMQ_URI=(str,),
+    DATBASE_URI=(str, None),
+    RABBITMQ_URI=(str, None),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

@@ -1,57 +1,110 @@
 version: '3.8'
 services:
-  flask_backend:
-    build:
-      context: .
-      dockerfile: flask_project/Dockerfile
-    command: >
-      bash -c " cd flask_project && flask db upgrade && python app.py"
+  postgres_db:
+    image: postgres
     ports:
-      - 8001:5000
+      - "5432:5432"
     volumes:
-      - .:/app
-    depends_on:
-      - postgres
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - ./django_project/postgres.env
+      - ./flask_project/postgres.env
 
-  flask_queue:
+  migrate_service:
     build:
-      context: .
-      dockerfile: flask_project/Dockerfile
-    command: >
-      bash -c 'cd flask_project && python -u consumer.py'
+      context: ./django_project
+      dockerfile: Dockerfile
+    command: python manage.py migrate --noinput
+    volumes:
+      - ./django_project:/app
+    env_file:
+      - ./django_project/postgres.env
     depends_on:
-      - postgres
+      - postgres_db
+
+  create_superuser:
+    build:
+      context: ./django_project
+      dockerfile: Dockerfile
+    command: python create_superuser.py
+    volumes:
+      - ./django_project:/app
+    env_file:
+      - ./django_project/postgres.env
+    depends_on:
+      - migrate_service
 
   backend:
     build:
-      context: .
-      dockerfile: django_project/Dockerfile
-    command: >
-      bash -c " cd django_project && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+      context: ./django_project
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
     ports:
-      - 8000:8000
+      - "8000:8000"
     volumes:
-      - .:/app
-    depends_on:
-      - postgres
-
-  django_queue:
-    build:
-      context: .
-      dockerfile: django_project/Dockerfile
-    command: >
-      bash -c "cd django_project && python -u consumer.py"
-    depends_on:
-      - postgres
-      - backend
-  
-
-  postgres:
-    image: postgres:latest
-    restart: always
-    ports:
-      - "5432:5432"
+      - ./django_project:/app
     env_file:
-      - django_project/postgres.env
-  
-  
+      - ./django_project/postgres.env
+    depends_on:
+      - create_superuser
+      - postgres_db
+
+  django_consumer:
+    build:
+      context: ./django_project
+      dockerfile: Dockerfile
+    command: python consumer.py
+    volumes:
+      - ./django_project:/app
+    env_file:
+      - ./django_project/postgres.env
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings # Set DJANGO_SETTINGS_MODULE here
+    depends_on:
+      - postgres_db
+      - migrate_service
+      - create_superuser
+
+
+  flask_migrate:
+    build:
+      context: ./flask_project
+      dockerfile: Dockerfile
+    command: flask db upgrade
+    volumes:
+      - ./flask_project:/app
+    env_file:
+      - ./flask_project/postgres.env
+    depends_on:
+      - postgres_db
+
+  flask_app:
+    build:
+      context: ./flask_project
+      dockerfile: Dockerfile
+    command: python app.py
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./flask_project:/app
+    env_file:
+      - ./flask_project/postgres.env
+    depends_on:
+      - flask_migrate
+      - postgres_db
+
+  flask_consumer:
+    build:
+      context: ./flask_project
+      dockerfile: Dockerfile # Path to Flask Dockerfile
+    command: python consumer.py 
+    volumes:
+      - ./flask_project:/app
+    env_file:
+      - ./flask_project/postgres.env # Flask project environment file
+    depends_on:
+      - postgres_db
+      
+
+volumes:
+  postgres_data:

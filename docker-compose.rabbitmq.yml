@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5673:5672" # RabbitMQ default port for AMQP
+      - "15673:15672" # RabbitMQ Management UI port
+    env_file:
+      - ./rabbitmq.env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq # Persist RabbitMQ data
+volumes:
+  rabbitmq_data:
